@@ -16,5 +16,6 @@
     },
     "autoload": {
         "psr-0": { "Labxxi\\PhpSesame": "" }
-    }
+    },
+    "target-dir": "Labxxi/PhpSesame"
 }
