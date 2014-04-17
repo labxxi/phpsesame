@@ -5,10 +5,9 @@
  * @package phpSesame
  */
 
-namespace Labxxi\PhpSesame;
 
-use Labxxi\PhpSesame\ResultFormat;
-use HTTP_Request2;
+require_once 'ResultFormat.php';
+require_once 'HTTP/Request2.php';
 
 /**
  * This Class is an interface to Sesame. It connects and perform queries through http.

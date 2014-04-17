@@ -1,6 +1,6 @@
 <?php
 
-use Labxxi\PhpSesame\PhpSesame;
+require 'PhpSesame.php';
 
 
 new PhpSesame();

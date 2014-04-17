@@ -1,7 +1,5 @@
 <?php
 
-namespace L21\PhpSesame;
-
 class ResultFormat
 {
 	private $xml;
