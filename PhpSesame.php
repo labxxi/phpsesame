@@ -4,9 +4,6 @@
  *
  * @package phpSesame
  */
-
-
-require_once 'ResultFormat.php';
 require_once 'HTTP/Request2.php';
 
 /**
@@ -17,9 +14,10 @@ require_once 'HTTP/Request2.php';
  * You can find more details about Sesame and its HTTP API at www.openrdf.org
  *
  * Based on the phpSesame library, https://github.com/alexlatchford/phpSesame by Alex Latchford
- *
+ * Inspired by the work of Julian Klotz https://github.com/julianklotz/phpSesame.git,
+ * and Andreas Thalhammer https://github.com/athalhammer/phpSesame.git
  * @author Mathieu Pipet
- * @version 0.1
+ * @version 2.0.0
  */
 class PhpSesame
 {
@@ -38,7 +36,6 @@ class PhpSesame
     const TRIX = 'application/trix';
     const TRIG = 'application/x-trig';
     const FORM = 'application/x-www-form-urlencoded';
-    
     const UTF8 = 'UTF-8';
 
     //const RDFTRANSACTION = 'application/x-rdftransaction';	// Unsupported, needs more documentation (http://www.franz.com/agraph/allegrograph/doc/http-protocol.html#header3-67)
@@ -54,21 +51,23 @@ class PhpSesame
     protected $repository;
 
     /**
-     * @var array namespaces string
-     */
-    protected $ns;
-    
-    /**
      * @var string charset
      */
     protected $acceptCharset;
-    
+
     /**
      * @var string charset
      */
     protected $contentCharset;
-    
-    
+
+    /*
+     * @var array credentials params
+     */
+    protected $auth = array(
+        'user'     => null,
+        'password' => null
+    );
+
     /**
      * 
      *
@@ -94,15 +93,15 @@ class PhpSesame
     public function listRepositories()
     {
         $request = new HTTP_Request2($this->dsn . '/repositories',
-                                       HTTP_Request2::METHOD_GET);
-        $request->setHeader('Accept: ' . self::SPARQL_XML.'; charset='.$this->acceptCharset);
-
+                                     HTTP_Request2::METHOD_GET);
+        $request->setHeader('Accept: ' . self::SPARQL_XML . '; charset=' . $this->acceptCharset);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
         if ($response->getStatus() != 200) {
             throw new \Exception('Phesame engine response error');
         }
 
-        return new ResultFormat($response->getBody());
+        return $response->getBody();
 
     }
 
@@ -175,7 +174,7 @@ class PhpSesame
     public function query($query, $resultFormat = self::SPARQL_XML,
             $queryLang = 'sparql', $infer = true)
     {
-        
+
         $this->checkRepository();
         $this->checkQueryLang($queryLang);
         $this->checkResultFormat($resultFormat);
@@ -184,21 +183,21 @@ class PhpSesame
                 $this->dsn . '/repositories/' . $this->repository,
                 HTTP_Request2::METHOD_POST
         );
-        $request->setHeader('Accept: ' . $resultFormat.'; charset='.$this->acceptCharset);
-        $request->setHeader('Content-type: '.self::FORM.'; charset='.$this->contentCharset);
+        $request->setHeader('Accept: ' . $resultFormat . '; charset=' . $this->acceptCharset);
+        $request->setHeader('Content-type: ' . self::FORM . '; charset=' . $this->contentCharset);
         $request->addPostParameter('query', $query);
         $request->addPostParameter('queryLn', $queryLang);
         $request->addPostParameter('infer', $infer);
-
+        $request = $this->prepareRequest($request);
         $response = $request->send();
-     
+
         if ($response->getStatus() != 200) {
             throw new \Exception('Failed to run query, HTTP response error: ' . $response->getStatus());
         }
-        
-        
-        
-        return new ResultFormat($response->getBody());
+
+
+
+        return $response->getBody();
 
     }
 
@@ -219,15 +218,15 @@ class PhpSesame
         $this->checkQueryLang($queryLang);
 
         $request = new HTTP_Request2(
-            $this->dsn . '/repositories/' . $this->repository,
-            HTTP_Request2::METHOD_POST
+                $this->dsn . '/repositories/' . $this->repository,
+                HTTP_Request2::METHOD_POST
         );
-        $request->setHeader('Accept: ' . self::RDFXML .'; charset='.$this->acceptCharset);
-        $request->setHeader('Content-type: '.self::FORM.'; charset='.$this->contentCharset);
+        $request->setHeader('Accept: ' . self::RDFXML . '; charset=' . $this->acceptCharset);
+        $request->setHeader('Content-type: ' . self::FORM . '; charset=' . $this->contentCharset);
 
         $request->addPostParameter('query', $query);
         $request->addPostParameter('queryLn', $queryLang);
-
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 200) {
@@ -252,14 +251,14 @@ class PhpSesame
     {
         $this->checkRepository();
         $url = $this->dsn . '/repositories/' . $this->repository . '/statements';
-        $request = new HTTP_Request2($url,
-                                       HTTP_Request2::METHOD_POST);
+        $request = new HTTP_Request2($url, HTTP_Request2::METHOD_POST);
 
         $request->addPostParameter('update', $query);
-        $request->setHeader('Content-type: '.self::FORM.';charset='.$this->contentCharset);
+        $request->setHeader('Content-type: ' . self::FORM . ';charset=' . $this->contentCharset);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
-        if ($response->getStatus() != 204) {    
+        if ($response->getStatus() != 204) {
             throw new \Exception('Failed to run update query, HTTP response error: ' . $response->getStatus());
         }
 
@@ -282,10 +281,10 @@ class PhpSesame
         $this->checkInputFormat($inputFormat);
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/statements?context=' . $context,
-                                       HTTP_Request2::METHOD_POST);
-        $request->setHeader('Content-type: ' . $inputFormat.'; charset='.$this->contentCharset);
+                                     HTTP_Request2::METHOD_POST);
+        $request->setHeader('Content-type: ' . $inputFormat . '; charset=' . $this->contentCharset);
         $request->setBody($data);
-
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
 
@@ -327,11 +326,11 @@ class PhpSesame
         $this->checkContext($context);
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/statements?context=' . $context,
-                                       HTTP_Request2::METHOD_PUT);
+                                     HTTP_Request2::METHOD_PUT);
 
-        $request->setHeader('Content-type: ' . $inputFormat.'; charset='.$this->contentCharset);
+        $request->setHeader('Content-type: ' . $inputFormat . '; charset=' . $this->contentCharset);
         $request->setBody($data);
-
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 204) {
@@ -385,9 +384,9 @@ class PhpSesame
         }
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/namespaces/' . $prefix,
-                                       HTTP_Request2::METHOD_GET);
-        $request->setHeader('Accept: text/plain; charset='.$this->acceptCharset);
-
+                                     HTTP_Request2::METHOD_GET);
+        $request->setHeader('Accept: text/plain; charset=' . $this->acceptCharset);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 200) {
@@ -414,10 +413,10 @@ class PhpSesame
         }
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/namespaces/' . $prefix,
-                                       HTTP_Request2::METHOD_PUT);
-        $request->setHeader('Content-type: text/plain; charset='.$this->contentCharset);
+                                     HTTP_Request2::METHOD_PUT);
+        $request->setHeader('Content-type: text/plain; charset=' . $this->contentCharset);
         $request->setBody($namespace);
-
+        $request = $this->prepareRequest($request);
         $response = $request->send();
         if ($response->getStatus() != 204) {
             throw new \Exception('Failed to set the namespace, HTTP response error: ' . $response->getStatus());
@@ -439,8 +438,8 @@ class PhpSesame
         }
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/namespaces/' . $prefix,
-                                       HTTP_Request2::METHOD_DELETE);
-
+                                     HTTP_Request2::METHOD_DELETE);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
         if ($response->getStatus() != 204) {
             throw new \Exception('Failed to delete the namespace, HTTP response error: ' . $response->getStatus());
@@ -460,16 +459,16 @@ class PhpSesame
         $this->checkRepository();
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/contexts',
-                                       HTTP_Request2::METHOD_POST);
-        $request->setHeader('Accept: ' . $resultFormat . '; charset='.$this->acceptCharset);
-
+                                     HTTP_Request2::METHOD_POST);
+        $request->setHeader('Accept: ' . $resultFormat . '; charset=' . $this->acceptCharset);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 200) {
             throw new \Exception('Failed to run query, HTTP response error: ' . $response->getStatus());
         }
 
-        return new ResultFormat($response->getBody());
+        return $response->getBody();
 
     }
 
@@ -485,9 +484,9 @@ class PhpSesame
         $this->checkRepository();
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/size?context=' . $context,
-                                       HTTP_Request2::METHOD_POST);
-        $request->setHeader('Accept: text/plain; charset='.$this->acceptCharset);
-
+                                     HTTP_Request2::METHOD_POST);
+        $request->setHeader('Accept: text/plain; charset=' . $this->acceptCharset);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 200) {
@@ -495,6 +494,57 @@ class PhpSesame
         }
 
         return (int) $response->getBody();
+
+    }
+
+    /**
+     * Create a new repository
+     * only two type of repositories are available, native and memory.
+     *
+     * @param	string	$context		The context used in SYSTEM repository to identify the new repo.
+     * @param	string	$name                   Repository Name
+     * @param	string	$context		Repository short description
+     * @param	boolean	$isInMemory		Boolean used to set native or in memory repository.
+     *
+     * @return	void
+     * 
+     */
+    public function createRepository($context, $name, $description,
+            $isInMemory)
+    {
+
+
+        $prevRepo = $this->repository;
+
+        $turtle = '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+                   @prefix rep: <http://www.openrdf.org/config/repository#>.
+                   @prefix sr: <http://www.openrdf.org/config/repository/sail#>.
+                   @prefix sail: <http://www.openrdf.org/config/sail#>.
+                   @prefix ms: <http://www.openrdf.org/config/sail/memory#>.
+                   @prefix ns: <http://www.openrdf.org/config/sail/native#>.
+ 
+                    [] a rep:Repository ;
+                       rep:repositoryID "' . $name . '" ;
+                       rdfs:label "' . $description . '" ;
+                       rep:repositoryImpl [
+                        rep:repositoryType "openrdf:SailRepository" ;
+                        sr:sailImpl [';
+
+        if ($isInMemory) {
+            $turtle .= 'sail:sailType "openrdf:MemoryStore" ;
+            ms:persist "true" ;';
+        } else {
+            $turtle .= 'sail:sailType "openrdf:NativeStore" ;
+            ns:tripleIndexes "spoc,posc"';
+        }
+
+        $turtle .= '
+                        ]
+                       ] .';
+
+        $this->append($turtle, $context, PhpSesame::TURTLE);
+
+        $this->setRepository($prevRepo);
 
     }
 
@@ -510,17 +560,57 @@ class PhpSesame
         $this->checkRepository();
 
         $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/statements',
-                                       HTTP_Request2::METHOD_DELETE);
-
+                                     HTTP_Request2::METHOD_DELETE);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
         if ($response->getStatus() != 204) {
             throw new \Exception('Failed to clear repository, HTTP response error: ' . $response->getStatus());
         }
 
     }
+
+    /**
+     * Clears a specific context
+     *
+     * Removes all data from the selected repository from a specific context.
+     *
+     * @return	void
+     */
+    public function clearContext($context)
+    {
+
+        $this->checkRepository();
+        $this->checkContext($context);
+
+        $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository . '/statements?context=' . $context,
+                                     HTTP_Request2::METHOD_DELETE);
+        $request = $this->prepareRequest($request);
+        $response = $request->send();
+        if ($response->getStatus() != 204) {
+            throw new Exception('Failed to clear context, HTTP response error: ' . $response->getStatus());
+        }
+
+    }
+    
     
     /**
-     * Delete the repository
+     * Delete the repository reference in the SYSTEM repo AND datas in it
+     *
+     * Removes the selected repository.
+     *
+     * @return	void
+     */
+    public function eraseRepo(){
+        
+        $this->clear();
+        $this->deleteRepo();        
+    }
+    
+    
+    
+    /**
+     * Delete the repository reference in the SYSTEM repo
+     * this function don't delete datas previously stored)
      *
      * Removes the selected repository.
      *
@@ -529,10 +619,10 @@ class PhpSesame
     public function deleteRepo()
     {
         $this->checkRepository();
-                
-        $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository,
-                                       HTTP_Request2::METHOD_DELETE);
 
+        $request = new HTTP_Request2($this->dsn . '/repositories/' . $this->repository,
+                                     HTTP_Request2::METHOD_DELETE);
+        $request = $this->prepareRequest($request);
         $response = $request->send();
 
         if ($response->getStatus() != 204) {
@@ -541,9 +631,8 @@ class PhpSesame
 
     }
 
-    
     /**
-     * Selects a repository to work on
+     * Set a repository to work on
      *
      * @return	void
      * @param	string	$rep	The repository name
@@ -553,9 +642,9 @@ class PhpSesame
         $this->repository = $rep;
 
     }
-    
+
     /**
-     * Selects a repository to work on
+     * Set a charset for accept Headers
      *
      * @return	void
      * @param	string	$charset	Charset string
@@ -565,9 +654,9 @@ class PhpSesame
         $this->acceptCharset = $charset;
 
     }
-    
+
     /**
-     * Selects a repository to work on
+     * Set a charset for content Headers
      *
      * @return	void
      * @param	string	$rep	The repository name
@@ -577,4 +666,39 @@ class PhpSesame
         $this->contentCharset = $charset;
 
     }
+
+    /*
+     * Set authentication params to be used with a repo
+     * 
+     * @return void
+     * @param string $user          user login to sesame repo
+     * @param string $password      user password to sesame repo
+     * 
+     */
+
+    public function setAuthentication($user, $password)
+    {
+        $this->auth['user'] = $user;
+        $this->auth['password'] = $password;
+
+    }
+
+    /**
+     * Prepares a request object.
+     *
+     * @param		HTTP_Request2 The object to prepare
+     * @return          HTTP_Request2 The prepared request object
+     */
+    private function prepareRequest($request)
+    {
+        if ($this->auth['user'] != null) {
+            // TODO: Add support for other Authentication Methods.
+            // http://pear.php.net/package/HTTP_Request2/docs/latest/HTTP_Request2/HTTP_Request2.html
+            $request->setAuth($this->auth['user'],
+                              $this->auth['password']);
+        }
+        return $request;
+
+    }
+
 }
